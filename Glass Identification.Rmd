@@ -1,0 +1,526 @@
+---
+title: \vspace{3cm} \begin{huge} \bf GLASS IDENTIFICATION DATA ANALYSIS \end{huge} \vspace{4cm}
+author: |
+    | \bf Akhil A. Naik
+# abstract: |
+#     What works for the abstract.
+# 
+#     Works for the title, too!
+header-includes:
+#    - \usepackage{floatrow}
+#    - \floatsetup[figure]{capposition=top}
+     - \usepackage{caption}
+     - \captionsetup[figure]{font=normalsize}
+     - \usepackage{biblatex}
+# https://en.wikibooks.org/wiki/LaTeX/Fonts#Built-in_sizes
+output:
+  #html_document: default
+  #bookdown::pdf_book: 
+    #toc_depth: 2
+  #bookdown::pdf_document2: default
+  pdf_document: 
+    number_sections: true
+    toc_depth: 3
+    fig_caption: yes
+    extra_dependencies: ["float"]
+bibliography: ref1.bib
+link-citations: yes
+#knitr::opts_chunk$set(fig.pos = "H", out.extra = "")
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(fig.pos = "H", out.extra = "")
+# \newpage
+# \listoffigures
+# \listoftables
+```
+\newpage
+\large
+\tableofcontents
+\newpage
+
+```{r echo=FALSE, results='hide', warning=FALSE, include = FALSE}
+library(lemon) # for printing table
+# render=lemon_print
+knit_print.data.frame <- lemon_print
+library(knitr)
+library(ggplot2)
+library(dplyr)
+library(tidyverse)
+library(GGally)
+library(reticulate) #enables to run python code
+# Installing python packages in r console
+# py_install("pandas")
+library(pastecs) # for getting summary statistics
+
+
+# Print tabular data
+tprint = function(x,cap=""){
+  knitr::kable(x, align = "c", caption = cap, digits=4)
+}
+```
+
+# Introduction
+Forensic studies frequently use glass fragments discovered at crime scenes as an evidence to correctly identify criminals thus solving the problem. In crime scenes such as house breaks where criminals can enter through shattering a window, even a small fragment of glass attached on a suspected persons cloths can solve the crime if the glass is correctly identified. Motivated by criminology investigation, *Vina Spiehler*, a personnel of *Diagnostic Products Corporation*, conducted a comparison test of her rule-based system, BEAGLE which is a product available through *VRS Consulting, Inc.*, the nearest-neighbor algorithm, and discriminant analysis [@1]. 
+
+Using attributes of a glass like refractive index and different types of oxides contents within it, following results were obtained to determine whether the glass was a type of *float* glass or not:
+
+1. Windows that were float processed : 87
+2. Windows that were not float processed : 76
+
+This *Glass Identification* data set is made available in the UCI Machine Learning Repository [@1]. By employing this dataset, the objective is to determine by visual assessment the two oxides in glass that best predict the refractive index and the type of glass.
+ 
+# Exploratory Data Analysis
+The glass identification dataset comprises of 214 observations/instances of 6 types of glasses defined in terms of their oxide content.
+
+## Attribute Information
+There are total of 11 attributes present in the data set. One of the data set attributes is the Refractive Index, which is a dimensionless number that gives the indication of the light bending ability of glass [@2]. Different formulas affect the mechanical, electrical, chemical, optical, and thermal properties of the glasses that are produced, some of which are mentioned in [@3]. Hence the other attributes comprise of oxide content (total 8) in glass which is measured as a weight percent in corresponding oxides like Na, Fe, K etc. Lastly the target variable is the type of the glass which classified in 7 different types although there are only 6 types of glass observation available in this data set.
+There are 163 Window glass (building windows and vehicle windows) and 51 Non-window glasses (containers, tableware, headlamps).
+\newpage
+Attributes:
+
+1. Id number: 1 to 214
+2. RI: refractive index
+3. Na: Sodium 
+4. Mg: Magnesium
+5. Al: Aluminum
+6. Si: Silicon
+7. K: Potassium
+8. Ca: Calcium
+9. Ba: Barium
+10. Fe: Iron
+11. Type of glass: (class attribute)
+      + building_windows_float_processed (1)
+      + building_windows_non_float_processed (2)
+      + vehicle_windows_float_processed (3)
+      + vehicle_windows_non_float_processed (4) (Not present in this data set)
+      + containers (5)
+      + tableware (6)
+      + headlamps (7)
+
+## Data Manipulation And Summary Statistics
+Our first step is to import the data set and prepare it for further analysis. The data is available in the *glass.data* file, with comma seperated values. Note that columns/attribute names are not present in the same file and must be imported/added from a different *glass.names * file. All the  explanatory variables are continuous numerical type as expected, but note that the response variable which classifies the type of glass is provided as an floating/numerical variable hence we convert it to a categorical type factor with 7 levels with each level corresponding to the type of glass as mentioned in above section. Following table shows first few observations of the data set:
+
+```{r echo=FALSE, results='asis', }
+# Importing data
+columns = c('Id_number','RI','Na','Mg','Al', 'Si','K','Ca','Ba','Fe','Type_of_glass')
+data = read.table('glass.data',sep=',',col.names = columns)
+
+# Converting type_of_glass to factor
+data$Type_of_glass = as.factor(data$Type_of_glass)
+
+tprint(head(data,3),"Glass Identification Data")
+
+# Python code
+# Convert r to py
+# d = r_to_py(subset(data,select = -c(Id_number)))
+# pd = import("pandas", as="pd", convert = FALSE)
+# x = d$describe()
+# df2 = pd$DataFrame(x)
+# df2 = df2$reset_index()
+# z = reticulate::py_to_r(df2)
+```
+
+Our next step is to explore the data for missing values as missing values can significantly affect our analysis. We also check the statistical parameters like mean, median, standard deviation etc. to get an overview of the data in terms of its central tendency and spread.  
+
+```{r echo=FALSE}
+df = subset(data,select = -c(Id_number, Type_of_glass))
+summary_df <- stat.desc(df)
+knitr::kable(summary_df, align = "c", caption = "Statistical Summary Of Explainatory Variables", digits=2)
+
+# Refractive Index - Statistical Summary
+d = data%>%
+group_by(Type_of_glass) %>%
+summarize(
+count = length(RI),
+std_dev = sd(RI),
+min=min(RI),
+q1=quantile(RI, 0.25),
+median=median(RI),
+mean=mean(RI),
+q3=quantile(RI, 0.75),
+max=max(RI))
+```
+As we can see from above table, the features are not on the same scale. For example Fe has a mean of 0.06 whereas Si has a mean of 72.65. This can pose problem as algorithms like logistic regression require features to be on the same scale to converge smoothly. Also, the data is not evenly balanced with respect to the types of glass.  As we can see from the below table, the observations for glass type 1 and type 2 constitutes more than 65% of the total data which implies unbalance data. 
+
+```{r echo=FALSE}
+d = data %>%
+group_by(Type_of_glass)%>%
+summarise(num_of_observations = length(Type_of_glass), percent_of_TotalData = round(length(Type_of_glass)/214,3) * 100)
+tprint(d, "Number of Instances for each glass type")
+```
+ 
+## Visualisations
+In this section we check if the data distributions are normal, check for outliers, explore relationships between the features and study the trends in the data via visualizations. We got a high level overview from the statistical summary which indicated that the data is not normal. The following density plots (Fig 1) confirms non-normal data for most of the features with skewness with Fe, Ba and K exhibiting high skewness. Also the boxplots for each features show certain glass types with outliers, fpr example feature Ca has plenty of outliers for glass type 2. Outliers may affect the final results but in our case we shall not remove the data/manipulate them for the time being.
+ 
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# Density Plots
+p1 = ggplot(data, aes(x=RI)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")+
+        theme_bw()  # Overlay with transparent density plot
+p2 = ggplot(data, aes(x=Na)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")+
+        theme_bw()  # Overlay with transparent density plot
+p3 = ggplot(data, aes(x=Mg)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")+
+        theme_bw()  # Overlay with transparent density plot
+p4 = ggplot(data, aes(x=Al)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")+
+        theme_bw()  # Overlay with transparent density plot
+p5 = ggplot(data, aes(x=Si)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")+
+        theme_bw()  # Overlay with transparent density plot
+p6 = ggplot(data, aes(x=K)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")+
+        theme_bw()  # Overlay with transparent density plot
+
+p7 = ggplot(data, aes(x=Ca)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")+
+        theme_bw()  # Overlay with transparent density plot
+p8 = ggplot(data, aes(x=Ba)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")+
+        theme_bw()  # Overlay with transparent density plot
+
+p9 = ggplot(data, aes(x=Fe)) + 
+    geom_histogram(aes(y=..density..),      # Histogram with density instead of count on y-axis
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666")+
+        theme_bw()  # Overlay with transparent density plot
+
+
+#grid.arrange(p1, p2, ncol=2)
+```
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# Box Plots
+
+p10 = ggplot(data, aes(x=Type_of_glass, y=RI, fill=Type_of_glass)) + 
+    geom_boxplot(alpha=0.3, show.legend = FALSE)+
+        theme_bw()
+p11 = ggplot(data, aes(x=Type_of_glass, y=Na, fill=Type_of_glass)) + 
+    geom_boxplot(alpha=0.3, show.legend = FALSE)+
+        theme_bw()
+p12 = ggplot(data, aes(x=Type_of_glass, y=Mg, fill=Type_of_glass)) + 
+    geom_boxplot(alpha=0.3, show.legend = FALSE)+
+        theme_bw()
+p13 = ggplot(data, aes(x=Type_of_glass, y=Al, fill=Type_of_glass)) + 
+    geom_boxplot(alpha=0.3, show.legend = FALSE)+
+        theme_bw()
+p14 = ggplot(data, aes(x=Type_of_glass, y=Si, fill=Type_of_glass)) + 
+    geom_boxplot(alpha=0.3, show.legend = FALSE)+
+        theme_bw()
+p15 = ggplot(data, aes(x=Type_of_glass, y=K, fill=Type_of_glass)) + 
+    geom_boxplot(alpha=0.3, show.legend = FALSE)+
+        theme_bw()
+p16 = ggplot(data, aes(x=Type_of_glass, y=Ca, fill=Type_of_glass)) + 
+    geom_boxplot(alpha=0.3, show.legend = FALSE)+
+        theme_bw()
+p17 = ggplot(data, aes(x=Type_of_glass, y=Ba, fill=Type_of_glass)) + 
+    geom_boxplot(alpha=0.3, show.legend = FALSE)+
+        theme_bw()
+p18 = ggplot(data, aes(x=Type_of_glass, y=Fe, fill=Type_of_glass)) + 
+    geom_boxplot(alpha=0.3, show.legend = FALSE)+
+        theme_bw()
+```
+
+```{r fig1, fig.align='center',fig.width=7,fig.height=10, fig.cap="\\label{fig:fig1}Density Plots and Box plots for each Glass Type", echo=FALSE, warning=FALSE, message=FALSE}
+
+require(gridExtra) # for plotting multiple plots together
+plot_list = list(p1,p2,p3,p4,p5,p6,p7,p8,p9,p10,p11,p12,p13,p14,p15,p16,p17,p18)
+do.call("grid.arrange", c(plot_list, ncol = 3)) 
+```
+```{r fig2, fig.width=7,fig.height=8, fig.cap="\\label{fig:fig2}Pair Plots (Non transformed variables)", echo=FALSE, warning=FALSE, message=FALSE}
+df = subset(data,select = -c(Id_number))
+ggpairs(df, columns = 1:9, aes(color = Type_of_glass, alpha = 0.3),
+        lower = list(continuous = wrap("points", alpha = 0.5, size=1)),
+        upper = list(continuous = wrap("cor", size = 1.3))) +
+theme( axis.line=element_blank(), 
+axis.text.x = element_text(face="bold",
+                           size=4, angle=45),
+axis.text.y = element_text(face="bold",
+                           size=4), 
+panel.grid.major= element_blank())
+# ggsave("./1.png")
+# knitr::include_graphics("./1.png")
+# ![half-size image](./1.png){#id .class width=120% height=90%}
+```
+
+As we can notice from the above figure (Fig 2), due to non-normal data present and outliers, observations involving relations with features like Mg, K, Ba and Fe appear to be closely coupled or squeezed at one side of either axis. This can be avoided by normalising the features either using logarithmic scale or transforming the features along with removing the outliers if necessary. However, note that this can also be due to genuine properties of the glass types which split them apart based on their oxide contents. We use Min-Max scaling method which allows us to scale the data values between a range of 0 to 1 and suppresses the effect of ouliers along with helping us have a smaller value of the standard deviation of the data scale [@4;@5]. Although the effect after scaling the data remains negligible for some features with excessive outlier, we can now check for relationship between the oxide features and refractive index along with type of glass.  
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# Min Max scaling
+library(caret)
+process = preProcess(df, method=c("range"))
+norm_scale = predict(process, df) # Normalised data
+
+# Computing correlation matrix
+norm_scale$Type_of_glass = as.numeric(norm_scale$Type_of_glass)
+cormat = round(cor(norm_scale),2)
+library(reshape2)
+melted_cormat = melt(cormat)
+
+reorder_cormat = function(cormat){
+# Use correlation between variables as distance
+dd = as.dist((1-cormat)/2)
+hc = hclust(dd)
+cormat =cormat[hc$order, hc$order]
+}
+
+# Get lower triangle of the correlation matrix
+  get_lower_tri=function(cormat){
+    cormat[upper.tri(cormat)] = NA
+    return(cormat)
+  }
+  # Get upper triangle of the correlation matrix
+  get_upper_tri = function(cormat){
+    cormat[lower.tri(cormat)]= NA
+    return(cormat)
+  }
+
+# Reorder the correlation matrix
+cormat = reorder_cormat(cormat)
+upper_tri = get_upper_tri(cormat)
+# Melt the correlation matrix
+melted_cormat = melt(upper_tri, na.rm = TRUE)
+# Create a ggheatmap
+ggheatmap = ggplot(melted_cormat, aes(Var2, Var1, fill = value))+
+ geom_tile(color = "white")+
+ scale_fill_gradient2(low = "blue", high = "red", mid = "white", 
+   midpoint = 0, limit = c(-1,1), space = "Lab", 
+    name="Pearson\nCorrelation") +
+  theme_minimal()+ # minimal theme
+ theme(axis.text.x = element_text(angle = 45, vjust = 1, 
+    size = 7, hjust = 1))+
+ coord_fixed()
+
+corplot = ggheatmap + 
+geom_text(aes(Var2, Var1, label = value), color = "black", size = 2) +
+  ggtitle("(1)")+
+theme(
+  axis.title.x = element_blank(),
+  axis.title.y = element_blank(),
+  panel.grid.major = element_blank(),
+  panel.border = element_blank(),
+  panel.background = element_blank(),
+  axis.ticks = element_blank(),
+  legend.justification = c(1, 0),
+  legend.position = c(0.6, 0.7),
+  legend.direction = "horizontal")+
+  guides(fill = guide_colorbar(barwidth = 5, barheight = 0.8,
+                title.position = "top", title.hjust = 0.5))
+
+norm_scale$Type_of_glass = as.factor(df$Type_of_glass)
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# Plots between different oxide contents vs Refractive index
+p1 = ggplot(norm_scale, aes(y=RI, x=Na, col = Type_of_glass))+
+   geom_point(size=0.5,show.legend = FALSE) +
+  stat_smooth(method = "lm", col = "black", size=0.5)+
+        theme_bw()
+p2 = ggplot(norm_scale, aes(y=RI, x=Mg, col = Type_of_glass))+
+   geom_point(size=0.5) +
+  stat_smooth(method = "lm", col = "black", size=0.5)+
+        theme_bw()
+p3 = ggplot(norm_scale, aes(y=RI, x=Al, col = Type_of_glass))+
+   geom_point(size=0.5,show.legend = FALSE) +
+  stat_smooth(method = "lm", col = "black", size=0.5)+
+        theme_bw()
+p4 = ggplot(norm_scale, aes(y=RI, x=Si, col = Type_of_glass))+
+   geom_point(size=0.5,show.legend = FALSE) +
+  stat_smooth(method = "lm", col = "black", size=0.5)+
+        theme_bw()
+p5 = ggplot(norm_scale, aes(y=RI, x=K, col = Type_of_glass))+
+   geom_point(size=0.5,show.legend = FALSE) +
+  stat_smooth(method = "lm", col = "black", size=0.5)+
+        theme_bw()
+p6 = ggplot(norm_scale, aes(y=RI, x=Ca, col = Type_of_glass))+
+   geom_point(size=0.5,show.legend = FALSE) +
+  stat_smooth(method = "lm", col = "black", size=0.5)+
+        theme_bw()
+p7 = ggplot(norm_scale, aes(y=RI, x=Ba, col = Type_of_glass))+
+   geom_point(size=0.5,show.legend = FALSE) +
+  stat_smooth(method = "lm", col = "black", size=0.5)+
+        theme_bw()
+p8 = ggplot(norm_scale, aes(y=RI, x=Fe, col = Type_of_glass))+
+   geom_point(size=0.5,show.legend = FALSE) +
+  stat_smooth(method = "lm", col = "black", size=0.5)+
+        theme_bw()
+
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# Cheking relation between the the highest correlated and lowest correlated oxide content with respect to glass type 
+p9 = ggplot(norm_scale, aes(y=Mg, x=Al, col = Type_of_glass))+
+   geom_point(size=0.5) +
+  ggtitle("(2)")+
+  stat_smooth(method = "lm", col = "black", size=0.5) +
+        theme_bw()+
+  theme(legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal')
+```
+```{r fig3, fig.align='center', fig.width=7,fig.height=4,fig.cap="\\label{fig:fig3}Correlation Heatmap (1) and Relation between two most correlated oxide contents with respect to glass type (2)", echo=FALSE, warning=FALSE, message=FALSE}
+do.call("grid.arrange", c(list(corplot,p9), nrow = 1)) 
+```
+
+As we can notice in the pearson correlation coefficient heatmap for all the variables in the data set from the the above figure (Fig 3 (1)), Al has the strongest positive correlation (*0.59*) whereas Mg has the strongest negative correlation (*-0.73*) associated with the types of glasses. With plot between these two as seen above (Fig 3 (2)), we can primarily distinguish between the building windows (float & non-float processed) and vehicle windows float processed glass types (Type,1,2,3) which constitute majority of the points above the best fit line (high level of Mg and Al) and glass types mainly (Type,5,6,7) which lie below the line (mid-low level Mg and mid-high level Al). We also look ahead how the RI vary with the oxide contents and relate to the types of glasses in following figure. The below figure (Fig 4) shows how RI vary significantly with Si and Ca as Ri has strongest negative correlation with Si (*-0.54*) and strongest positive correlation with Ca *(0.81)*. 
+
+```{r fig4, fig.align='center',fig.width=7,fig.height=8, fig.cap="\\label{fig:fig4}RI vs the oxide contents", echo=FALSE, warning=FALSE, message=FALSE}
+do.call("grid.arrange", c(list(p1,p2,p3,p4,p5,p6,p7,p8), ncol = 2)) 
+```
+
+Glasses with a lower RI and mid-high level Si are likely to be classified as non building or vehicle window glasses mainly headlamps whereas glasses with higher RI and low-mid level Si are more likely to be building windows. Similarly, best fit line between RI and and Ca also allows us to distinguish between the building and vehicle window glasses (likely to be above the line) and the remaining types which are likely to be below the line. Let us check these best attributes for each glass type in following figure.
+
+```{r echo=FALSE, warning=FALSE, message=FALSE}
+# Fig 5(1) - Finding relation of Refractive Index with varying Si and Ca
+p11 = ggplot(norm_scale, aes(y=Ca, x=Si))+
+   geom_point(size=0.5,mapping=aes(col=RI),
+position='jitter') +
+  ggtitle("(1)")+
+  theme(legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal')+
+        theme_bw()
+p12 = ggplot(norm_scale, aes(y=Ca, x=Si))+
+   geom_point(size=0.5,show.legend = FALSE,mapping=aes(col=RI),
+position='jitter') +
+  ggtitle("(2)")+
+  stat_smooth(method = "lm", col = "black", size=0.5) +
+  facet_wrap(~ Type_of_glass)+
+  theme(legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal')+
+        theme_bw()
+p13 = ggplot(norm_scale, aes(y=Mg, x=Al, col = Type_of_glass))+
+   geom_point(size=0.5,show.legend = FALSE) +
+  ggtitle("(3)")+
+  stat_smooth(method = "lm", col = "black", size=0.5) +
+  facet_wrap(~ Type_of_glass)+
+  theme(legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal')+
+        theme_bw()
+```
+```{r fig5, fig.align='center',fig.width=7,fig.height=8.5, fig.cap="\\label{fig:fig5}Relation of RI with the oxide contents (1) and its relation with respect to each glass type (2) and Mg vs Ai (3)", echo=FALSE, warning=FALSE, message=FALSE}
+do.call("grid.arrange", c(list(p11,p12,p13), ncol = 1)) 
+```
+From above figure (Fig 5(1)) we can see how RI varies with Ca and Si. With higher the level of Si and lower the level of Ca, the refractive index is low. Whereas glasses with high level Ca and lower Si are likely to have higher refractive index. Similarly (Fig 5(3)) Mg and Al can be significant in determining the building and vehicle window glasses which have high Mg levels and low Al level and the remaining glass types which have lower Mg content with mid level Al content. We can also determine the individual glass types considering the above 3 plots, as float processed glasses (type 1 and 3) have higher Mg levels, low Si, low RI and mid to low level Si and Ca content.
+
+# Conclusion
+We found out that Ca and Si oxide content can be significant in determining the refractive index of a glass. We also found that Mg and Al oxide content can be significant in determining the types of glasses mainly in distinguishing between, the building and vehicle window glasses which are highly associated with crime scenes vs the other daily home usage glass items. Presence of outliers and unbalanced and non normal data are likely to pose problem for better predictability. Also since the data observation are highly overlapped indicating that the types of glasses have correlation with almost every feature, visualisation with individual features alone may not bring justice for better predictions hence we may have to choose some dimensionality reduction techniques like Principal Component Analysis along with suitable machine learning algorithm for best prediction accuracy.
+
+# Code Snippets
+
+```{r eval=F, echo=T}
+# Importing data
+columns = c('Id_number','RI','Na','Mg','Al','Si','K','Ca','Ba','Fe','Type_of_glass')
+glass_data = read.table('glass.data',sep=',',col.names = columns)
+# Converting type_of_glass to factor
+data$Type_of_glass = as.factor(data$Type_of_glass)
+```
+```{r eval=F, echo=T}
+#Density Plots and Box Plots
+ggplot(data, aes(x=RI)) + 
+    geom_histogram(aes(y=..density..),# Histogram with density on y-axis
+                   colour="black", fill="white") +
+    geom_density(alpha=.2, fill="#FF6666") + # Overlay with transparent density plot
+        theme_bw()  
+p10 = ggplot(data, aes(x=Type_of_glass, y=RI, fill=Type_of_glass)) + 
+    geom_boxplot(alpha=0.3, show.legend = FALSE)+
+        theme_bw()
+```
+```{r eval=F, echo=T}
+# Pair Plots
+ggpairs(df, columns = 1:9, aes(color = Type_of_glass, alpha = 0.3),
+        lower = list(continuous = wrap("points", alpha = 0.3, size=0.2)),
+        upper = list(continuous = wrap("cor", size = 1.3))) +
+theme( axis.line=element_blank(), 
+axis.text.x = element_text(face="bold",
+                           size=4, angle=45),
+axis.text.y = element_text(face="bold",
+                           size=4), 
+panel.grid.major= element_blank())
+```
+```{r eval=F, echo=T}
+# Min Max scaling
+library(caret)
+process = preProcess(df, method=c("range"))
+norm_scale = predict(process, df) # Normalised data
+```
+```{r eval=F, echo=T}
+# Cheking relation between the the highest correlated and 
+# lowest correlated oxide content with respect to glass type 
+p9 = ggplot(norm_scale, aes(y=Mg, x=Al, col = Type_of_glass))+
+   geom_point(size=0.5) +
+  ggtitle("(2)")+
+  stat_smooth(method = "lm", col = "black", size=0.5) +
+        theme_bw()+
+  theme(legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal')
+```
+```{r eval=F, echo=T}
+# Fig 5(1) - Finding relation of Refractive Index with varying Si and Ca
+p11 = ggplot(norm_scale, aes(y=Ca, x=Si))+
+   geom_point(size=0.5,mapping=aes(col=RI),
+position='jitter') +
+  ggtitle("(1)")+
+  theme(legend.position='top', 
+        legend.justification='left',
+        legend.direction='horizontal')+
+        theme_bw()
+```
+```{r eval=F, echo=T}
+# Fig 5(3) - Mg vs Al w.r.t types of glass
+p13 = ggplot(norm_scale, aes(y=Mg, x=Al, col = Type_of_glass))+
+   geom_point(size=0.5,show.legend = FALSE) +
+  ggtitle("(3)")+ stat_smooth(method = "lm", col = "black", size=0.5) +
+  facet_wrap(~ Type_of_glass)+
+  theme(legend.position='top', legend.justification='left',
+        legend.direction='horizontal')+theme_bw()
+```
+```{r echo=FALSE, warning=FALSE, message=FALSE, eval=F}
+
+# ggplot(data=norm_scale, mapping=aes(x=RI, y=Na)) +
+# geom_point(mapping=aes(col=Ca),
+# position='jitter')+ facet_wrap(~ Type_of_glass)
+
+# custom_scale <- ggpairs(data.frame(x=exp(rnorm(1000)), y=rnorm(1000)),
+# upper=list(continuous='points'), lower=list(continuous='points'))
+# subplot <- getPlot(custom_scale, 1, 2) # retrieve the top left chart
+# subplotNew <- subplot + scale_y_log10() # change the scale to log
+# subplotNew$type <- 'logcontinuous' # otherwise ggpairs comes back to a fixed scale
+# subplotNew$subType <- 'logpoints'
+# custom_scale2 <- putPlot(custom_scale, subplotNew, 1, 2)
+# custom_scale
+# ggplot(data, aes(y=Al, x=Ca, col = Type_of_glass))+
+#   geom_point()
+
+# ggplot(norm_scale, aes(y=Mg, x=Al, col = Type_of_glass))+
+#    geom_point() +
+#   ggtitle("(1)")+
+#   stat_smooth(method = "lm", col = "black", size=0.5) +
+#   facet_wrap(~ Type_of_glass)+
+#   theme(legend.position='top', 
+#         legend.justification='left',
+#         legend.direction='horizontal')
+#knitr::kable(head(glass_data), align = "c", caption = "Summary")
+```
+\newpage
+# References
+
+
